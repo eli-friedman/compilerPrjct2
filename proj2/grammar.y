@@ -1,4 +1,9 @@
-%{
+%{   
+
+
+//Eli Friedman and Daniel Nestor
+
+
 #include  "proj2.h"
 #include  <stdio.h>
 
@@ -24,7 +29,7 @@
 %type  <tptr>  MethodCallStatement_tail Expression_rec ReturnStatement IfStatement If_rec WhileStatement
 %type  <tptr>  Expression Comp_op SimpleExpression Term Factor Expression_rec2
 %type  <tptr>  UnsignedConstant Variable Variable_tail Variable_rec Variable_1 VariableDeclId_rec VariableInitializer_rec ArrayInitializer_head DeclsWithMethodDecl_rec DeclsWithMethodDecl ArrayCreationBrackets_rec Term_rec 
-%type  <tptr>  TypeDeclBrackets_rec TypeField
+%type  <tptr>  TypeDeclBrackets_rec TypeField ArrayDeclBrackets_rec VariableDecBody RArgType VArgType preType ValBody VarExprs AssignmentStatement preTermWithOr preTermFactor
 
 %%/* yacc specification*/
 Program          :      PROGRAMnum IDnum SEMInum ClassDecl_rec
@@ -45,10 +50,19 @@ ClassDecl : CLASSnum IDnum ClassBody
 		   	{ $$ = MakeTree(ClassDefOp, $3, MakeLeaf(IDNode, $2) ); }
 			;
 
-ClassBody :  LBRACEnum RBRACEnum 
+ClassBody :  LBRACEnum Decls MethodDecl MethodDecl RBRACEnum 
+			{ $$ = MakeTree( BodyOp, MakeTree(BodyOp, $2, $3), $4); }
+          |
+		    LBRACEnum MethodDecl RBRACEnum 
+			{ $$ = MakeTree( BodyOp, NullExp(), $2); }
+	
+		  |	LBRACEnum RBRACEnum 
 			{ $$ = MakeTree( BodyOp, NullExp(), NullExp()); }
 	      |		
 			LBRACEnum DeclsWithMethodDecl_rec MethodDecl RBRACEnum 
+		  	{ $$ = MakeTree( BodyOp, $2, $3); } 
+		  |		
+			LBRACEnum DeclsWithMethodDecl_rec DeclsWithMethodDecl RBRACEnum 
 		  	{ $$ = MakeTree( BodyOp, $2, $3); }
 		  |
 		    LBRACEnum Decls MethodDecl RBRACEnum 
@@ -56,9 +70,7 @@ ClassBody :  LBRACEnum RBRACEnum
 		  |
 		    LBRACEnum Decls RBRACEnum 
 			{ $$ = MakeTree( BodyOp, $2, NullExp()); }
-		  |
-		    LBRACEnum MethodDecl RBRACEnum 
-			{ $$ = MakeTree( BodyOp, NullExp(), $2); }
+		  
 		  |  
 		    LBRACEnum MethodDecl_rec MethodDecl RBRACEnum 
 			{ $$ = MakeTree( BodyOp, NullExp(), $2); }
@@ -79,8 +91,11 @@ DeclsWithMethodDecl      : Decls MethodDecl
 
 MethodDecl_rec :       MethodDecl 
 					   { $$ = MakeTree( BodyOp, NullExp(), $1); }
-					|  MethodDecl_rec MethodDecl
+					|/* DeclsWithMethodDecl 
+					   { $$ = MakeTree( BodyOp, $1, NullExp()); }
+					| */ MethodDecl_rec MethodDecl
 					   { $$ = MakeTree( BodyOp, $1, $2); }
+					;
 			
 Decls :    DECLARATIONSnum ENDDECLARATIONSnum
 		  { $$ = MakeTree( BodyOp, NullExp(), NullExp()); }
@@ -97,32 +112,31 @@ FieldDecl_rec :      FieldDecl
 				|    FieldDecl_rec FieldDecl
 				    { $$ = MakeTree( BodyOp, $1, $2); }
 				;
-			
-FieldDecl : 	    Type  {x = $1;} VariableDeclId_rec Variable_1 SEMInum
-					{  $$ = MakeTree( DeclOp, $3, $4); }
-				|   Type {x = $1;} Variable_1 SEMInum
-				    { $$ = MakeTree( DeclOp, NullExp(), $3); }
-			     ;
-			
-VariableDeclId_rec :      Variable_1
-					     { $$ = MakeTree( DeclOp, NullExp(), $1); }
-					   | VariableDeclId_rec COMMAnum Variable_1
-					     { $$ = MakeTree( DeclOp, $1, $3); }
-				       ;
-						 
-Variable_1      :      VariableDeclId
-					   {  $$ = MakeTree( CommaOp, $1, MakeTree(CommaOp, x, NullExp()) ); }
-				|      VariableDeclId EQnum VariableInitializer
-					   { $$ = MakeTree( CommaOp, $1, MakeTree(CommaOp, x, $3) ); }
-					
-VariableDeclId :    IDnum 
+
+FieldDecl : 	      Type {x = $1;} VariableDecBody SEMInum
+	                { $$ = MakeTree( DeclOp, NullExp(), $3); }
+					;
+
+VariableDecBody: VariableDeclId EQUALnum VariableInitializer
+				  { $$ = MakeTree( DeclOp, NullExp(), MakeTree(CommaOp, $1, MakeTree(CommaOp, x, $3) ) ) ;}
+				| VariableDeclId
+				  { $$ = MakeTree( DeclOp, NullExp(), MakeTree(CommaOp, $1, MakeTree(CommaOp, x, NullExp() ) ) ) ;}
+				| VariableDecBody COMMAnum VariableDeclId EQUALnum VariableInitializer
+				  { $$ = MakeTree( DeclOp, $1, MakeTree(CommaOp, $3, MakeTree(CommaOp, x, $5 ) ) ) ;}
+				| VariableDecBody COMMAnum VariableDeclId
+				  { $$ = MakeTree( DeclOp, $1, MakeTree(CommaOp, $3, MakeTree(CommaOp, x, NullExp() ) ) ); }
+				;
+				
+VariableDeclId :    IDnum ArrayDeclBrackets_rec
 					{ $$ = MakeLeaf(IDNode, $1); }
-				|   IDnum ArrayDeclBrackets_rec
-					{ $$ = MakeLeaf(IDNode, $1); }
+				|	IDnum 
+				  	{ $$ = MakeLeaf(IDNode, $1); }
 				;
 
 ArrayDeclBrackets_rec : LBRACnum RBRACnum
-					  | LBRACnum RBRACnum ArrayDeclBrackets_rec
+						{ $$ = MakeTree( IndexOp, NullExp(), NullExp() ); }
+					  |  ArrayDeclBrackets_rec LBRACnum RBRACnum
+					    { $$ = MakeTree( IndexOp, NullExp(), $1 ); }
 					  ;
 				  
 VariableInitializer   : Expression
@@ -132,16 +146,18 @@ VariableInitializer   : Expression
 					  ;
 				  
 ArrayInitializer      :  LBRACEnum ArrayInitializer_head RBRACEnum
+						 {$$ = $2;}
 					  ;
 
 ArrayInitializer_head : VariableInitializer_rec
 						{ $$ = MakeTree(ArrayTypeOp, $1, x); }
 					  ;
 
-VariableInitializer_rec : VariableInitializer
-						  { $$ = MakeTree( CommaOp, NullExp(), $1 ); }
-						| VariableInitializer_rec COMMAnum VariableInitializer
+VariableInitializer_rec : | VariableInitializer_rec COMMAnum VariableInitializer
 						  { $$ = MakeTree( CommaOp, $1, $3 ); }
+						|  VariableInitializer
+						  { $$ = MakeTree( CommaOp, NullExp(), $1 ); }
+						
 						;
 						
 ArrayCreationExpression : INTnum ArrayCreationBrackets_rec
@@ -153,27 +169,42 @@ ArrayCreationBrackets_rec : LBRACnum Expression RBRACnum
 						    { $$ = MakeTree( BoundOp, $1, $3 ); }
 						  ;
 
-MethodDecl : /*** why is this giving error?? METHODnum Type {typeForMethodDecl = $2;} IDnum LPARENnum FormalParameterList RPARENnum Block
+MethodDecl : METHODnum Type {typeForMethodDecl = $2;} IDnum LPARENnum FormalParameterList RPARENnum Block
 			 { $$ = MakeTree( MethodOp, MakeTree(HeadOp, MakeLeaf(IDNode, $4), $6 ), $8); }
-		   |  ***/ METHODnum VOIDnum IDnum LPARENnum FormalParameterList RPARENnum Block
+		   |   METHODnum VOIDnum IDnum LPARENnum FormalParameterList RPARENnum Block
 		     { $$ = MakeTree( MethodOp, MakeTree(HeadOp, MakeLeaf(IDNode, $3), $5 ), $7); }
-		   | METHODnum Type {typeForMethodDecl = $2;} IDnum LPARENnum RPARENnum Block
+		  |
+            METHODnum Type {typeForMethodDecl = $2;} IDnum LPARENnum RPARENnum Block
 		     { $$ = MakeTree(MethodOp, MakeTree(HeadOp, MakeLeaf(IDNode, $4), NullExp() ), $7 ); }
 		   | METHODnum VOIDnum IDnum LPARENnum RPARENnum Block
 		     { $$ = MakeTree(MethodOp, MakeTree(HeadOp, MakeLeaf(IDNode, $3), NullExp() ), $6 ); }
             ;
 			
 FormalParameterList :  FormalParameterList_rec 
+						{ $$ = MakeTree(SpecOp, $1 , typeForMethodDecl ); }
                     ;
 					
-/**ask proffesor****/FormalParameterList_rec : INTnum IDENTIFIER_rec
-						  { $$ = MakeTree(SpecOp, $2 , typeForMethodDecl ); }
-						| VALnum INTnum IDENTIFIER_rec
-						  { $$ = MakeTree(SpecOp, $3 , typeForMethodDecl ); }
-						| FormalParameterList_rec SEMInum INTnum IDENTIFIER_rec
-					  //  { $$ = MakeTree(SpecOp, MakeTree(RArgTypeOp, MakeTree() ) , typeForMethodDecl ); }
-						| FormalParameterList_rec SEMInum VALnum INTnum IDENTIFIER_rec
-					    ;
+FormalParameterList_rec : INTnum RArgType
+						  { $$ = $2;}
+						| VALnum INTnum VArgType
+						  { $$ = $3; }
+						| FormalParameterList_rec SEMInum INTnum RArgType
+					      { $$ = MkRightC($4, $1); }
+						| FormalParameterList_rec SEMInum VALnum INTnum VArgType
+						  { $$ = MkRightC($5, $1); }
+						;
+
+RArgType : IDnum
+           { $$ = MakeTree(RArgTypeOp, MakeTree(CommaOp, MakeLeaf(IDNode, $1), MakeLeaf(INTEGERTNode, 0) ), NullExp()  ) ;}
+		   | RArgType COMMAnum IDnum
+		     { $$ = MakeTree(RArgTypeOp, MakeTree(CommaOp, MakeLeaf(IDNode, $3), MakeLeaf(INTEGERTNode, 0) ), $1  )  ;}
+	      ;
+		  
+VArgType : IDnum
+           { $$ = MakeTree(RArgTypeOp, MakeTree(CommaOp, MakeLeaf(IDNode, $1), MakeLeaf(INTEGERTNode, 0) ), NullExp()  )  ;}
+		   | VArgType COMMAnum IDnum
+		     { $$ = MakeTree(RArgTypeOp, MakeTree(CommaOp, MakeLeaf(IDNode, $3), MakeLeaf(INTEGERTNode, 0) ), $1  )  ;}
+	      ;
 						
 IDENTIFIER_rec : IDnum 
 				 { $$ = MakeTree(CommaOp, MakeLeaf(IDNode, $1), MakeLeaf(INTEGERTNode, 0) ); }
@@ -187,18 +218,25 @@ Block: Decls StatementList
 	   {$$ = MakeTree(BodyOp, NullExp(), $1);}
      ;
 	 
-Type : INTnum 
+preType : INTnum 
 	   { $$ = MakeTree(TypeIdOp, MakeLeaf(INTEGERTNode, 0) , NullExp() ); }
 	 | IDnum
        { $$ = MakeTree(TypeIdOp, MakeLeaf(IDNode, $1) , NullExp() ); }
-	 | INTnum 
      ;
 	 
-TypeDeclBrackets_rec : LBRACnum RBRACnum TypeField
-					   { $$ = MakeTree(IndexOp, NullExp(), $3); }
-					 | LBRACnum RBRACnum TypeDeclBrackets_rec    
-                       { $$ = MakeTree(IndexOp, NullExp(), $3); }					  
-   				     ;
+Type : preType 
+       { $$ = MakeTree(TypeIdOp, $1 , NullExp() ); }
+	 |  preType TypeDeclBrackets_rec
+	    { $$ = MakeTree(TypeIdOp, $1 , $2 ); }
+	 | Type DOTnum preType TypeDeclBrackets_rec
+	   { tree t = MakeTree(TypeIdOp, $3 , $4 ); $$ = MkRightC(t, $1); }
+	   ;
+	 
+TypeDeclBrackets_rec : LBRACnum RBRACnum
+						{ $$ = MakeTree( IndexOp, NullExp(), NullExp() ); }
+					  |  TypeDeclBrackets_rec LBRACnum RBRACnum
+					    { $$ = MakeTree( IndexOp, NullExp(), $1 ); }
+					  ;
 					 
 TypeField : //epsilon
             { $$ = NullExp(); }
@@ -210,26 +248,39 @@ StatementList : LBRACEnum Statement_rec RBRACEnum
 				{$$ = $2;}
 			  ;
 		  
-Statement_rec : Statement SEMInum
+Statement_rec : Statement 
 			    { $$ = MakeTree(StmtOp, NullExp(), $1); }
-			  | Statement_rec Statement SEMInum
+			  | Statement_rec Statement
 			    { $$ = MakeTree(StmtOp, $1, $2); }
 			  ;
 			  
 Statement: //epsilon 
              {$$ = NullExp();}
-		   | ReturnStatement
-		   //| WhileStatement
+		   | ReturnStatement SEMInum
+		   | MethodCallStatement SEMInum
+		   | AssignmentStatement SEMInum
+		   | WhileStatement SEMInum
+		   | IfStatement SEMInum
 		 ;
-		 
+
+IfStatement: IFnum Expression StatementList{$$ = MakeTree(IfElseOp,NullExp(),$3);}
+			| IFnum Expression StatementList ELSEnum IfStatement{$$ = MakeTree(IfElseOp,$5,MakeTree(CommaOp, $2,$3));}
+			| IFnum Expression StatementList ELSEnum StatementList{$$ = MakeTree(IfElseOp,NullExp(),MakeTree(CommaOp, $2,$3));}
+
+
+;
+
+AssignmentStatement: Variable ASSGNnum Expression{$$ = MakeTree(AssignOp,MakeTree(AssignOp,NullExp(),$1),$3);}
+                   ;		 
+
 ReturnStatement : RETURNnum 
 				  { $$ = MakeTree(ReturnOp, NullExp(), NullExp() ); }
 				| RETURNnum Expression
 		          { $$ = MakeTree(ReturnOp, $2, NullExp() ); }
 				;
 				
-WhileStatement : WHILEnum Expression StatementList
-				 { $$ = MakeTree(LoopOp, $2, $3); }
+WhileStatement : WHILEnum LPARENnum Expression RPARENnum StatementList
+				 { $$ = MakeTree(LoopOp, $3, $5); }
                ;
 			
 Expression : SimpleExpression //{$$ = $1; }
@@ -248,7 +299,8 @@ Comp_op : LTnum { $$ = MakeTree(LTOp, NullExp(), NullExp() ); }
 SimpleExpression :   preTerm Term
                    { $$ = MakeTree(AddOp, NullExp(), $2); }
 				 | preTerm Term preTermWithOr Term
-				   { $$ = MakeTree(AddOp, $4, $2); }
+				   //{ $$ = MakeTree(AddOp, $4, $2); }
+				    { MkLeftC($2, $3); $$ = MkRightC($4, $3);}
 				 | preTerm Term Term_rec
                    { $$ = MakeTree(AddOp, $3, $2); }
 				 ;
@@ -258,30 +310,87 @@ preTerm : //epsilon
 	   ;
 	   
 Term_rec :  preTermWithOr Term
-		   { $$ = MakeTree(AddOp, NullExp(), $2); }
+		//   { $$ = MakeTree(AddOp, NullExp(), $2); }
+		   { $$ = MkRightC($2, $1);}
 		 | preTermWithOr Term Term_rec
            { $$ = MakeTree(AddOp, $3, $2); }
 		 ;
 
-preTermWithOr : PLUSnum | MINUSnum | ORnum
+preTermWithOr : PLUSnum 
+                { $$ = MakeTree(AddOp, NullExp(), NullExp()); }
+			  | MINUSnum 
+			    { $$ = MakeTree(SubOp, NullExp(), NullExp()); }
+			  | ORnum  
+			    { $$ = MakeTree(OrOp, NullExp(), NullExp()); }
 	          ;
 			  
 Term : Factor
        { $$ = MakeTree(UnaryNegOp, $1, NullExp() ); }
-     | Factor preTermFactor Term
+     | Factor preTermFactor Factor
+       { MkLeftC($1, $2); $$ = MkRightC($3, $2);}
+	  | Factor preTermFactor Term
        { $$ = MakeTree(UnaryNegOp, $1, $3 ); }
 	 ;
 	 
-preTermFactor : TIMESnum | DIVIDEnum | ANDnum
+preTermFactor : //TIMESnum | DIVIDEnum | ANDnum
+			  //  { $$ = MakeTree(UnaryNegOp, $1, NullExp() ); }
+			  |	TIMESnum 
+                { $$ = MakeTree(AddOp, NullExp(), NullExp()); }
+			  | DIVIDEnum 
+			    { $$ = MakeTree(SubOp, NullExp(), NullExp()); }
+			  | ANDnum  
+			    { $$ = MakeTree(OrOp, NullExp(), NullExp()); }
+	          ;
               ;
 			  
-Factor : UnsignedConstant {$$ = $1;};
+Factor : UnsignedConstant //{$$ = $1;}
+       | Variable
+	   | MethodCallStatement
+	   | LPARENnum Expression RPARENnum
+	   | NOTnum Factor
+       ;
 
 UnsignedConstant: ICONSTnum
 				  { $$ = MakeLeaf(NUMNode, $1 ); }
 				| SCONSTnum
 				  { $$ = MakeLeaf(STRINGNode, $1 ); }
 				  ;
+		  
+Variable : IDnum ValBody
+           { $$ = MakeTree(VarOp, MakeLeaf(IDNode, $1 ), $2 ); }
+		 | IDnum 
+		   { $$ = MakeTree(VarOp, MakeLeaf(IDNode, $1 ), NullExp() ); }
+		  ;
+
+
+ValBody : LBRACnum VarExprs RBRACnum
+          { $$ = MakeTree(SelectOp, $2, NullExp() ); } 
+		| DOTnum IDnum
+		  { $$ = MakeTree(SelectOp, MakeTree(FieldOp, MakeLeaf(IDNode, $2 ) , NullExp() ) , NullExp() ); }
+		| ValBody LBRACnum VarExprs RBRACnum
+          { tree t = MakeTree(SelectOp, $3, NullExp() ); $$ = MkRightC(t, $1) ; }
+		| ValBody DOTnum IDnum
+		  { tree t = MakeTree(SelectOp, MakeTree(FieldOp, MakeLeaf(IDNode, $3 ) , NullExp() ), NullExp() ); $$ = MkRightC(t, $1); }
+		;
+
+VarExprs : Expression
+            { $$ = MakeTree(IndexOp, $1, NullExp() ); } 
+		  | VarExprs COMMAnum Expression
+		    { tree t = MakeTree(IndexOp, $3, NullExp() ); $$ = MkRightC(t, $1) ; }
+;
+
+//method call statement
+MethodCallStatement: Variable LPARENnum RPARENnum
+                     { $$ = MakeTree(RoutineCallOp, $1, NullExp() ) ;}
+				   | Variable LPARENnum Expression_rec2 RPARENnum
+				     {$$ = MakeTree(RoutineCallOp,$1,$3);} 
+                   ;
+
+Expression_rec2: Expression COMMAnum Expression_rec2
+                 {$$ = MakeTree(CommaOp,$1,$3);}
+               | Expression
+			     {$$ = MakeTree(CommaOp,$1,NullExp());}
+               ;
 				 
 %%
 
