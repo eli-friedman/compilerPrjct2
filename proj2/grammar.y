@@ -23,8 +23,8 @@
 %type  <tptr>  StatementList Statement_rec Statement AssignmentStatement MethodCallStatement
 %type  <tptr>  MethodCallStatement_tail Expression_rec ReturnStatement IfStatement If_rec WhileStatement
 %type  <tptr>  Expression Comp_op SimpleExpression Term Factor Expression_rec2
-%type  <tptr>  UnsignedConstant Variable Variable_tail Variable_rec Variable_1 VariableDeclId_rec VariableInitializer_rec ArrayInitializer_head DeclsWithMethodDecl_rec DeclsWithMethodDecl ArrayCreationBrackets_rec Term_rec
-
+%type  <tptr>  UnsignedConstant Variable Variable_tail Variable_rec Variable_1 VariableDeclId_rec VariableInitializer_rec ArrayInitializer_head DeclsWithMethodDecl_rec DeclsWithMethodDecl ArrayCreationBrackets_rec Term_rec 
+%type  <tptr>  TypeDeclBrackets_rec TypeField
 
 %%/* yacc specification*/
 Program          :      PROGRAMnum IDnum SEMInum ClassDecl_rec
@@ -145,7 +145,7 @@ VariableInitializer_rec : VariableInitializer
 						;
 						
 ArrayCreationExpression : INTnum ArrayCreationBrackets_rec
-						  { $$ = MakeTree( ArrayTypeOp, $2, MakeLeaf(INTEGERTNode, 0/****** what to put here ****/) ); }
+						  { $$ = MakeTree( ArrayTypeOp, $2, MakeLeaf(INTEGERTNode, 0) ); }
 
 ArrayCreationBrackets_rec : LBRACnum Expression RBRACnum
 						    { $$ = MakeTree( BoundOp, NullExp(), $2 ); }
@@ -158,7 +158,7 @@ MethodDecl : /*** why is this giving error?? METHODnum Type {typeForMethodDecl =
 		   |  ***/ METHODnum VOIDnum IDnum LPARENnum FormalParameterList RPARENnum Block
 		     { $$ = MakeTree( MethodOp, MakeTree(HeadOp, MakeLeaf(IDNode, $3), $5 ), $7); }
 		   | METHODnum Type {typeForMethodDecl = $2;} IDnum LPARENnum RPARENnum Block
-		     { $$ = MakeTree(MethodOp, MakeTree(HeadOp, MakeLeaf(IDNode, $4), NullExp() ),NullExp() /**********************$7*/ ); }
+		     { $$ = MakeTree(MethodOp, MakeTree(HeadOp, MakeLeaf(IDNode, $4), NullExp() ), $7 ); }
 		   | METHODnum VOIDnum IDnum LPARENnum RPARENnum Block
 		     { $$ = MakeTree(MethodOp, MakeTree(HeadOp, MakeLeaf(IDNode, $3), NullExp() ), $6 ); }
             ;
@@ -189,20 +189,35 @@ Block: Decls StatementList
 	 
 Type : INTnum 
 	   { $$ = MakeTree(TypeIdOp, MakeLeaf(INTEGERTNode, 0) , NullExp() ); }
+	 | IDnum
+       { $$ = MakeTree(TypeIdOp, MakeLeaf(IDNode, $1) , NullExp() ); }
+	 | INTnum 
      ;
 	 
+TypeDeclBrackets_rec : LBRACnum RBRACnum TypeField
+					   { $$ = MakeTree(IndexOp, NullExp(), $3); }
+					 | LBRACnum RBRACnum TypeDeclBrackets_rec    
+                       { $$ = MakeTree(IndexOp, NullExp(), $3); }					  
+   				     ;
+					 
+TypeField : //epsilon
+            { $$ = NullExp(); }
+		  | DOTnum Type
+		    { $$ = MakeTree(FieldOp, $2, NullExp()); }
+		  ;
+	 
 StatementList : LBRACEnum Statement_rec RBRACEnum
-				{$$ = NullExp();}
+				{$$ = $2;}
 			  ;
 		  
-Statement_rec : Statement
+Statement_rec : Statement SEMInum
 			    { $$ = MakeTree(StmtOp, NullExp(), $1); }
-			  | Statement_rec Statement
+			  | Statement_rec Statement SEMInum
 			    { $$ = MakeTree(StmtOp, $1, $2); }
 			  ;
 			  
 Statement: //epsilon 
-           {$$ = NullExp();}
+             {$$ = NullExp();}
 		   | ReturnStatement
 		   //| WhileStatement
 		 ;
@@ -217,23 +232,25 @@ WhileStatement : WHILEnum Expression StatementList
 				 { $$ = MakeTree(LoopOp, $2, $3); }
                ;
 			
-Expression : SimpleExpression {$$ = $1;}
+Expression : SimpleExpression //{$$ = $1; }
  | SimpleExpression Comp_op SimpleExpression
     { MkLeftC($1, $2); $$ = MkRightC($3, $2); }
   ;
    
 Comp_op : LTnum { $$ = MakeTree(LTOp, NullExp(), NullExp() ); }
-		| LEnum { $$ = MakeTree(LTOp, NullExp(), NullExp() ); }
-		| EQnum { $$ = MakeTree(LTOp, NullExp(), NullExp() ); }
-		| NEnum { $$ = MakeTree(LTOp, NullExp(), NullExp() ); }
-		| GEnum { $$ = MakeTree(LTOp, NullExp(), NullExp() ); }
-		| GTnum { $$ = MakeTree(LTOp, NullExp(), NullExp() ); }
+		| LEnum { $$ = MakeTree(LEOp, NullExp(), NullExp() ); }
+		| EQnum { $$ = MakeTree(EQOp, NullExp(), NullExp() ); }
+		| NEnum { $$ = MakeTree(NEOp, NullExp(), NullExp() ); }
+		| GEnum { $$ = MakeTree(GEOp, NullExp(), NullExp() ); }
+		| GTnum { $$ = MakeTree(GTOp, NullExp(), NullExp() ); }
          ;
 
-SimpleExpression : preTerm Term Term_rec
-                   { $$ = MakeTree(AddOp, $3, $2); }
-				 |  preTerm Term
+SimpleExpression :   preTerm Term
                    { $$ = MakeTree(AddOp, NullExp(), $2); }
+				 | preTerm Term preTermWithOr Term
+				   { $$ = MakeTree(AddOp, $4, $2); }
+				 | preTerm Term Term_rec
+                   { $$ = MakeTree(AddOp, $3, $2); }
 				 ;
 
 preTerm : //epsilon
@@ -258,11 +275,14 @@ Term : Factor
 preTermFactor : TIMESnum | DIVIDEnum | ANDnum
               ;
 			  
-Factor : UnsignedConstant;
+Factor : UnsignedConstant {$$ = $1;};
 
 UnsignedConstant: ICONSTnum
 				  { $$ = MakeLeaf(NUMNode, $1 ); }
-				 ;
+				| SCONSTnum
+				  { $$ = MakeLeaf(STRINGNode, $1 ); }
+				  ;
+				 
 %%
 
 int yycolumn, yyline;
