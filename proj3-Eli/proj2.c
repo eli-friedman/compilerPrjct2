@@ -414,7 +414,18 @@ void printtree (nd, depth)
 		    break;
 
     case STNode:
-                    indx = IntVal(nd);
+			/*
+				indx = IntVal(nd);
+                    if (indx > 0)
+                    {
+                      id = indx; /* GetAttr(indx, NAME_ATTR); *
+                      fprintf (treelst,"[STNode,%d,\"%s\"]\n", IntVal(nd),
+                                                    getname(id));
+                    }
+                    else 
+                      fprintf (treelst,"[IDNode,%d,\"%s\"]\n", indx, "err");
+                    break;
+                */  indx = IntVal(nd);
 					//fprintf(treelst,"indx = %d\n", indx);
                     if (indx > 0)
                     {
@@ -427,7 +438,7 @@ void printtree (nd, depth)
                     else 
                       fprintf (treelst,"[IDNode,%d,\"%s\"]\n", indx, "err");
                     break;
-
+				
     case INTEGERTNode:
                       fprintf (treelst,"[INTEGERTNode]\n");
                     break;

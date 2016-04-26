@@ -884,28 +884,137 @@ tree treeptr = NULL;
 int symbol_table_index = 0;
 int nestLevel = 0;
 
-void methodNodeTrav(){
+void methodNodeTrav(tree nd2){
 	
+	//first go left to headOP
+	//for now dont do anything with right tree which is parameters
+	
+	tree tempNode = LeftChild(nd2);
+	
+	//declare the symbol table indexes
+	symbol_table_index = InsertEntry(IntVal(LeftChild(tempNode)));
+	
+	//SetAttr(symbol_table_index, NAME_ATTR, IntVal(LeftChild(tempNode)));
+	//SetAttr(symbol_table_index, NEST_ATTR, nestLevel);
+	
+	free( LeftChild(tempNode) ); // unlink IDNode
+	SetLeftChild(tempNode, MakeLeaf( STNode, symbol_table_index) );
+	
+	OpenBlock();
+	//nestLevel++;
+	
+	//tempNode = RightChild(nd2);
+	
+	traverseTree(LeftChild(nd2));
+	traverseTree(RightChild(nd2));
+	
+	//nestLevel--;
+	CloseBlock();
+		
+}
+
+void declarationsNodeTrav(tree nd2){
+
+	//go rightt to comma op then go left to IDNode
+	tree tempNode = RightChild(nd2);
+	
+	int existingInd = 0;
+	if(LookUpHere(IntVal(LeftChild(tempNode))) > 0 ){
+		existingInd = LookUpHere(IntVal(LeftChild(nd2)));
+		printf("ERROR---You are trying to decalare a variable that has already been declared in this block\n");
+	}
+/*	else if(LookUp(IntVal(LeftChild(tempNode))) > 0){
+		existingInd = LookUp(IntVal(LeftChild(tempNode)));
+		printf("ERROR---You are trying to decalare a variable that has already been declared in this scope\n");
+	}
+*/	
+	symbol_table_index = InsertEntry(IntVal(LeftChild(tempNode)));
+	
+	//SetAttr(symbol_table_index, NAME_ATTR, IntVal(LeftChild(tempNode)));
+	//SetAttr(symbol_table_index, NEST_ATTR, nestLevel);
+	
+	free( LeftChild(tempNode) ); // unlink IDNode
+	SetLeftChild(tempNode, MakeLeaf( STNode, symbol_table_index) );
+	
+	traverseTree(LeftChild(nd2));
+	traverseTree(RightChild(nd2));
+	
+}
+
+void variableNodeTrav(tree nd2){
+	tree tempNode = LeftChild(nd2);
+	
+	int symbol_table_index = 0;
+	if(LookUpHere(IntVal(tempNode)) > 0 ){
+		symbol_table_index = LookUpHere(IntVal(tempNode));
+	}
+	else if(LookUp(IntVal(tempNode)) > 0){
+		
+		symbol_table_index = LookUp(IntVal(tempNode));
+	}	
+	else{
+		symbol_table_index = InsertEntry(IntVal(tempNode));
+	
+		free( tempNode ); // unlink IDNode
+		
+		
+		printf("ERROR---You are trying to use a variable that has not been declared in this scope\n");
+	}
+	
+	SetLeftChild(nd2, MakeLeaf( STNode, symbol_table_index) );
+	
+	traverseTree(LeftChild(nd2));
+	traverseTree(RightChild(nd2));
+}
+
+void genericTrav(tree nd2){
+
 }
 
 //traverse the tree using the standard traversal
 int traverseTree(tree nd2){
+	
+	//base case
+	if(nd2 == NULL){
+		return 0;
+	}
+	
 //	printf("inside the tree traverser\n");
 	
 	//part where the symbol/string table is built
-	printf("Value inserted into string table\n");
-	OpenBlock();
+	//printf("Value inserted into string table\n");
+	//OpenBlock();
 	
-	//check if nodeKind is EXPRNode
+	//check if nodeKind is EXPRNode 
 	if( NodeKind(nd2) == EXPRNode ){
 	
 		//if NodeOp is MethodOp
 		if(NodeOp(nd2) == MethodOp){
+			//printf("value of node op = %d\n", NodeOp(nd2));
 			methodNodeTrav(nd2);
+				
+			return 0;
 		}
+		
+		//if NodeOp is DeclOp
+		if(NodeOp(nd2) == DeclOp){
+			//printf("value of node op = %d\n", NodeOp(nd2));
+			declarationsNodeTrav(nd2);
+				
+			return 0;
+		}
+		
+		//if NodeOp is VarOp
+		if(NodeOp(nd2) == VarOp){
+			//printf("value of node op = %d\n", NodeOp(nd2));
+			variableNodeTrav(nd2);
+				
+			return 0;
+		}
+		
 	}
-	
-	
+
+
 	
 	
 	
@@ -939,22 +1048,27 @@ int traverseTree(tree nd2){
 	
 	//if the node to the right is an id Replace it
 	if(NodeKind(RightChild(nd2)) == 200){
-	
-		//declare the symbol table indexes
-		symbol_table_index = InsertEntry(RightChild(nd2));
 		
-		SetAttr(symbol_table_index, NAME_ATTR, IntVal(RightChild(nd2)));
-		SetAttr(symbol_table_index, NEST_ATTR, nestLevel);
 		
-		//	printf("RightChildHit\n");
-		//replace the Id Node
-		free( RightChild(nd2) ); // unlink IDNode
-		//printtree(nd2,0);
-		SetRightChild(nd2, MakeLeaf( STNode, symbol_table_index) );
-		//printtree(nd2,0);
+			//declare the symbol table indexes
+			//	tree temp2 = RightChild(nd2);
+			symbol_table_index = InsertEntry(IntVal(RightChild(nd2)));
+			//	printf("st index %d\n", symbol_table_index);
+			//	SetAttr(symbol_table_index, NAME_ATTR, IntVal(RightChild(nd2)));
+			//	SetAttr(symbol_table_index, NEST_ATTR, nestLevel);
+			
+			//	printf("RightChildHit\n");
+			//replace the Id Node
+			free( RightChild(nd2) ); // unlink IDNode
+			//printtree(nd2,0);
+			SetRightChild(nd2, MakeLeaf( STNode, symbol_table_index) );
+			
+			
+			//only make a left recursive call
+			traverseTree(LeftChild(nd2));
+			
+			//printtree(nd2,0);
 		
-		//only make a left recursive call
-		traverseTree(LeftChild(nd2));
 		
 		return 0;
 		
@@ -964,11 +1078,14 @@ int traverseTree(tree nd2){
 		//printf("LeftChildHit\n");
 		//replace the Id Node
 		
-		//declare the symbol table indexes
-		symbol_table_index = InsertEntry(LeftChild(nd2));
+		//tree temp2 = LeftChild(nd2);
+		symbol_table_index = InsertEntry(IntVal(LeftChild(nd2)));
 		
-		SetAttr(symbol_table_index, NAME_ATTR, IntVal(LeftChild(nd2)));
-		SetAttr(symbol_table_index, NEST_ATTR, nestLevel);
+		//declare the symbol table indexes
+		//symbol_table_index = InsertEntry(LeftChild(nd2));
+		
+		//SetAttr(symbol_table_index, NAME_ATTR, IntVal(LeftChild(nd2)));
+		//SetAttr(symbol_table_index, NEST_ATTR, nestLevel);
 		
 		free( LeftChild(nd2) ); // unlink IDNode
 		SetLeftChild(nd2, MakeLeaf( STNode, symbol_table_index) );
@@ -989,14 +1106,16 @@ int traverseTree(tree nd2){
 		
 	}
 	
+	
 	// if neither of the child nodes are Ids
 	//make recursive calls in both directions
+	if(LeftChild(nd2) != NULL || RightChild(nd2) != NULL){
+		traverseTree(LeftChild(nd2));
+		traverseTree(RightChild(nd2));
+	}
 	
-	traverseTree(LeftChild(nd2));
-	traverseTree(RightChild(nd2));
 	
-	
-	CloseBlock();
+	//CloseBlock();
 	
 	return 0;
 }
