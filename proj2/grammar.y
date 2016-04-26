@@ -402,6 +402,7 @@ main()
 {
   treelst = stdout;
   yyparse();
+  
 }
 
 yyerror(char *str)
